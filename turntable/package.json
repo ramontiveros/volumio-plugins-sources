@@ -1,0 +1,25 @@
+{
+	"name": "turntable",
+	"version": "1.0.0",
+	"description": "A plugin for control a turntable through Raspberry PI GPIO",
+	"main": "index.js",
+	"scripts": {
+		"test": "echo \"Error: no test specified\" && exit 1"
+	},
+	"author": "Ramon Ontiveros Palacios",
+	"license": "ISC",
+	"volumio_info": {
+		"prettyName": "turntable",
+		"icon": "fa-lightbulb-o",
+		"plugin_type": "music_service"
+	},
+	"dependencies": {
+		"fs-extra": "^0.28.0",
+		"kew": "^0.7.0",
+		"v-conf": "^1.4.0"
+	},
+	"engines": {
+		"node": ">=14.15.4 <15.0.0",
+		"volumio": ">=3.198.0 <4.0.0"
+	}
+}
