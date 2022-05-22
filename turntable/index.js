@@ -160,9 +160,6 @@ turntable.prototype.clearAddPlayTrack = function(track) {
 	  self.commandRouter.pushConsoleMessage('[' + Date.now() + '] ' + 'turntable::clearAddPlayTrack');
 	  self.commandRouter.logger.info(JSON.stringify(track));
 
-    self.startStream();
-    return self.sendSpopCommand('uplay', [track.uri]);
-/*
     return self.startStream().then(function() {
         self.commandRouter.pushConsoleMessage('[' + Date.now() + '] ' + 'turntable::StreamStarted');
         return self.mpdPlugin.sendMpdCommand('clear', []);
@@ -180,26 +177,27 @@ turntable.prototype.clearAddPlayTrack = function(track) {
             e
         );
     });
-*/
 };
 
 turntable.prototype.startStream = function () {
-    self.commandRouter.logger.info('startStream');
+    var self = this;
+    var defer = libQ.defer();
+
     self.commandRouter.pushConsoleMessage('[' + Date.now() + '] ' + 'turntable::startStream');
-    /*
-      var defer = libQ.defer();
-      self.streamer = spawn('vlc', ['alsa://hw:5,0', '--sout="#transcode{vcodec=hevc,acodec=mpga,ab=128,channels=2,samplerate=44100,scodec=none}:http{dst=:6000/turntable.mpg}"']);
-      self.commandRouter.logger.info(`Spawned child pid: ${self.streamer.pid}`);
-      self.streamer.stderr.on('data', (data) => self.commandRouter.logger.error(data));
-      self.streamer.stdout.on('data', (data) => {
-      self.commandRouter.logger.info(data);
-      if (data.includes("adding input codec=mpga"))
-      defer.resolve();
-      });
-      self.streamer.on('close', (code) => defer.reject(code));
-      defer.timeout(60*1000);
-      return defer.promise;
-    */
+    self.streamer = spawn('cvlc', ['alsa://hw:5,0', '--sout="#transcode{vcodec=hevc,acodec=mpga,ab=128,channels=2,samplerate=44100,scodec=none}:http{dst=:6000/turntable.mpg}"'], { shell: true, detached: true });
+    self.commandRouter.logger.info(`Spawned child pid: ${self.streamer.pid}`);
+    self.streamer.stderr.on('data', (data) => {
+        self.commandRouter.logger.error(data);
+        if (data.includes("ps mux: Open"))
+            defer.resolve();
+    });
+    self.streamer.stdout.on('data', (data) => {
+        self.commandRouter.logger.info(data);
+        if (data.includes("ps mux: Open"))
+            defer.resolve();
+    });
+    defer.timeout(60*1000);
+    return defer.promise;
 };
 
 turntable.prototype.pushSongState = function () {
@@ -273,7 +271,7 @@ turntable.prototype.stop = function() {
         'Se ha apagado el tocadiscos'
     );
 
-    if (self.streamer) self.streamer.kill();
+    if (self.streamer) process.kill(-self.streamer.pid);
 
     return self.mpdPlugin.stop()
         .then(function () {
@@ -291,6 +289,8 @@ turntable.prototype.pause = function() {
     if (self.timer) {
         self.timer.pause();
     }
+
+    if (self.streamer) process.kill(-self.streamer.pid);
 
     // pause the song and store the seek position needed for the new setTimeout calculation
     return self.mpdPlugin.sendMpdCommand('pause', [1])
