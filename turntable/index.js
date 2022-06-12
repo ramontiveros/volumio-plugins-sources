@@ -6,6 +6,7 @@ var config = new (require('v-conf'))();
 var exec = require('child_process').exec;
 var execSync = require('child_process').execSync;
 var spawn = require('child_process').spawn;
+const { Gpio } = require( 'onoff' );
 
 module.exports = turntable;
 function turntable(context) {
@@ -38,8 +39,13 @@ turntable.prototype.onStart = function() {
     self.mpdPlugin = this.commandRouter.pluginManager.getPlugin('music_service', 'mpd');
     self.serviceName = "turntable";
     this.addToBrowseSources();
-	  // Once the Plugin has successfull started resolve the promise
-	  defer.resolve();
+
+    self.relayA = new Gpio( '5', 'out' );
+    self.relayB = new Gpio( '6', 'out' );
+
+    this.swapRelays(0).then(function() {
+	      defer.resolve();
+    });
 
     return defer.promise;
 };
@@ -160,7 +166,7 @@ turntable.prototype.clearAddPlayTrack = function(track) {
 	  self.commandRouter.pushConsoleMessage('[' + Date.now() + '] ' + 'turntable::clearAddPlayTrack');
 	  self.commandRouter.logger.info(JSON.stringify(track));
 
-    return self.startStream().then(function() {
+    return Promise.all([self.startStream(),self.swapRelays(1)]).then(function() {
         self.commandRouter.pushConsoleMessage('[' + Date.now() + '] ' + 'turntable::StreamStarted');
         return self.mpdPlugin.sendMpdCommand('clear', []);
     }).then(function() {
@@ -199,6 +205,11 @@ turntable.prototype.startStream = function () {
     defer.timeout(60*1000);
     return defer.promise;
 };
+
+turntable.prototype.swapRelays = function (value) {
+    var self = this;
+    return Promise.all([self.relayA.write(value), self.relayB.write(value)]);
+}
 
 turntable.prototype.pushSongState = function () {
     var self = this;
@@ -277,6 +288,7 @@ turntable.prototype.stop = function() {
         .then(function () {
             self.state.status = 'stop';
             self.commandRouter.servicePushState(self.state, self.serviceName);
+            return self.swapRelays(0);
         });
 };
 
